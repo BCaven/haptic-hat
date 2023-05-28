@@ -1,6 +1,3 @@
-"""
-main.py - Runs automatically when the Raspberry Pi Pico is provided power
-"""
 
 from machine import I2C, Pin, PWM
 
@@ -18,8 +15,8 @@ MODE_NOOP = 3
 mode = MODE_COMPASS
 
 RECALIBRATE = False
-ak8963_offset = (-23.69063, -6.096094, -7.751953)
-ak8963_scale = (1.000207, 1.014458, 0.9857479)
+ak8963_offset = (-24.40313, -4.572071, -6.459963)
+ak8963_scale = (1.024429, 0.9863868, 0.9900541)
 
 pins = [
     Pin(i, Pin.OUT)
@@ -56,7 +53,20 @@ else:
 sensor = MPU9250(i2c, ak8963=ak8963)
 
 MAX_INT = 65025
-THRESHOLD = 0.9
+THRESHOLD = 0.8
+
+def precalculate_motor_directions():
+    motor_directions = []
+    for i in range(8):
+        # Determine motor's local position
+        motor_angle = i / 8.0 * pi * 2.0 - pi
+        motor_directions.append((
+            cos(motor_angle),
+            sin(motor_angle)
+        ))
+    return motor_directions
+
+motor_directions = precalculate_motor_directions()
 
 def rotate2D(a, b, theta):
     ct = cos(theta)
@@ -85,36 +95,27 @@ def normalize(v1):
     )
 
 def compass_mode():
-    # sensor.acceleration is all we need for this hat
     gx, gy, gz = sensor.magnetic
-    
+
     # rotate on Y axis to account for hat tilt
     theta = -pi / 6
     gx, gz = rotate2D(gx, gz, theta)
-    
+
     # rotate on X axis to correct position on hat
-    theta = -pi * 1/24
+    theta = -pi / 12
     gy, gz = rotate2D(gy, gz, theta)
     
-    #ux, uy, uz = sensor.acceleration
+    # calculate magnetic heading
+    # in theory, points towards north
+    heading = atan2(-gy, gx)
+    hx, hy = cos(heading), sin(heading)
     
-    ux, uy, uz = (0, 0, 1)
-    
-    nx, ny, nz = cross((gx, gy, gz), (ux, uy, uz))
-    nx, ny, nz = normalize((nx, ny, nz))
-    
-    for i, pwm in enumerate(pwms):
+    for i in range(8):
         # Determine motor's local position
-        motor_angle = (i) / 8.0 * pi * 2.0 + pi
+        mx, my = motor_directions[i]
         
-        mx, my, mz = (
-            cos(motor_angle),
-            sin(motor_angle),
-            0
-        )
-
-        # Determine if motor is pointing towards "north"
-        similarity = mx * nx + my * ny + mz * nz
+        # Determine if motor is pointing near 
+        similarity = mx * hx + my * hy
         
         if similarity > THRESHOLD:
             
@@ -124,13 +125,12 @@ def compass_mode():
             
             # Activate motor
             duty_amt = int(similarity * MAX_INT)
-            pwm.duty_u16(duty_amt)
+            pwms[i].duty_u16(duty_amt)
         
         else:
-            pwm.duty_u16(0)
+            pwms[i].duty_u16(0)
 
 def acceleration_mode():
-    # sensor.acceleration is all we need for this hat
     ax, ay, az = normalize(sensor.acceleration)
     
     # rotate on Y axis to account for hat tilt
@@ -138,7 +138,7 @@ def acceleration_mode():
     ax, az = rotate2D(ax, az, theta)
     
     # rotate on X axis to correct position on hat
-    theta = -pi * 1/24
+    theta = -pi / 12
     ay, az = rotate2D(ay, az, theta)
     
     for i, pwm in enumerate(pwms):
@@ -169,7 +169,6 @@ def acceleration_mode():
             pwm.duty_u16(0)
 
 def gyro_mode():
-    # sensor.acceleration is all we need for this hat
     gx, gy, gz = sensor.gyro
     
     for i, pwm in enumerate(pwms):
@@ -208,4 +207,5 @@ callbacks = {
     MODE_NOOP: noop_mode
 }
 
-start_timer(callbacks[mode], freq=60)
+start_timer(callbacks[mode], freq=1)
+
