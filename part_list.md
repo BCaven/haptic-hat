@@ -12,8 +12,9 @@
 ### Raspberry Pi Pico W:
 - https://datasheets.raspberrypi.com/picow/connecting-to-the-internet-with-pico-w.pdf
 ### Gyroscope/Acceleration Sensor:
-- 
+- https://www.amazon.com/dp/B01I1J0Z7Y/
 ### Shrinkwrap:
-- 
-### Sleeve:
-- 
+- https://www.amazon.com/dp/B08Z36N8F8/
+- https://www.amazon.com/dp/B072PCQ2LW/
+### Arm Sleeve:
+- https://www.amazon.com/dp/B07S2TFK24/
