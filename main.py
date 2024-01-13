@@ -1,5 +1,8 @@
 
 from machine import I2C, Pin, PWM
+from micropython import const
+import gc
+from sys import exit
 
 from mpu9250 import MPU9250
 from ak8963 import AK8963
@@ -7,16 +10,20 @@ from ak8963 import AK8963
 from time import sleep
 from math import pi, cos, sin, sqrt, atan2
 
-MODE_GYRO = 0
-MODE_ACCELERATION = 1
-MODE_COMPASS = 2
-MODE_NOOP = 3
+# collect garbage before doing anything
+gc.collect()
 
-mode = MODE_COMPASS
 
-RECALIBRATE = False
-ak8963_offset = (-24.40313, -4.572071, -6.459963)
-ak8963_scale = (1.024429, 0.9863868, 0.9900541)
+_MODE_GYRO = const(0)
+_MODE_ACCELERATION = const(1)
+_MODE_COMPASS = const(2)
+_MODE_NOOP = const(3)
+
+mode = _MODE_COMPASS
+
+_RECALIBRATE = const(0)
+ak8963_offset = (-18.61406, 14.16445, 56.93379)     # (-24.40313, -4.572071, -6.459963)
+ak8963_scale = (1.231462, 1.186465, 0.7434298)      # (1.024429, 0.9863868, 0.9900541)
 
 pins = [
     Pin(i, Pin.OUT)
@@ -34,7 +41,7 @@ for pwm in pwms:
 i2c = I2C(scl=Pin(17), sda=Pin(16), id=0)
 sensor = MPU9250(i2c)
 
-if RECALIBRATE:
+if _RECALIBRATE:
     print("Starting calibration")
     ak8963 = AK8963(i2c)
     offset, scale = ak8963.calibrate(count=256, delay=200)
@@ -52,8 +59,8 @@ else:
 
 sensor = MPU9250(i2c, ak8963=ak8963)
 
-MAX_INT = 65025
-THRESHOLD = 0.8
+_MAX_INT = const(65025)
+_THRESHOLD = const(0.8)
 
 def precalculate_motor_directions():
     motor_directions = []
@@ -105,10 +112,13 @@ def compass_mode():
     theta = -pi / 12
     gy, gz = rotate2D(gy, gz, theta)
     
+    print(f"gx: {gx} gy:{gy} gz: {gz}")
+
     # calculate magnetic heading
     # in theory, points towards north
     heading = atan2(-gy, gx)
     hx, hy = cos(heading), sin(heading)
+    print(f"hx: {hx} hy: {hy}") 
     
     for i in range(8):
         # Determine motor's local position
@@ -117,15 +127,17 @@ def compass_mode():
         # Determine if motor is pointing near 
         similarity = mx * hx + my * hy
         
-        if similarity > THRESHOLD:
+        if similarity > _THRESHOLD:
             
             # Normalize to (0, 1) range
-            similarity -= THRESHOLD
-            similarity *= 1.0 / (1.0 - THRESHOLD)
+            similarity -= _THRESHOLD
+            similarity *= 1.0 / (1.0 - _THRESHOLD)
             
             # Activate motor
-            duty_amt = int(similarity * MAX_INT)
+            duty_amt = int(similarity * _MAX_INT)
             pwms[i].duty_u16(duty_amt)
+            print(f"Motor {i} activated at {similarity}")
+
         
         else:
             pwms[i].duty_u16(0)
@@ -159,7 +171,7 @@ def acceleration_mode():
             similarity = 0.5 + similarity * 0.5
             
             # convert to unsigned 16-bit integer
-            amt = int(similarity * MAX_INT)
+            amt = int(similarity * _MAX_INT)
             pwm.duty_u16(amt)
         
         else:
@@ -170,20 +182,19 @@ def acceleration_mode():
 
 def gyro_mode():
     gx, gy, gz = sensor.gyro
-    
     for i, pwm in enumerate(pwms):
         motor_angle = (i + 4) / 8.0 * pi * 2.0
         mx, my = cos(motor_angle), sin(motor_angle)
         
         similarity = -gy * mx + gx * my
         
-        if similarity > THRESHOLD:
+        if similarity > _THRESHOLD:
             
-            similarity -= THRESHOLD
+            similarity -= _THRESHOLD
             similarity = sqrt(similarity)
             similarity = 0.5 + 0.5 * similarity
             
-            duty_amt = int(similarity * MAX_INT)
+            duty_amt = int(similarity * _MAX_INT)
             
             pwm.duty_u16(duty_amt)
         
@@ -192,19 +203,30 @@ def gyro_mode():
 
 def noop_mode():
     for pwm in pwms:
-        pwm.duty_u16(0)
+        # -1 turns the motor off
+        pwm.duty_u16(-1)
 
 def start_timer(callback, freq):
     period = 1.0 / freq
     while True:
-        callback()
-        sleep(period)
-
+        try:
+            callback()
+            sleep(period)
+            # collect garbage memory
+            gc.collect()
+        except KeyboardInterrupt:
+            # turn off the motors
+            noop_mode()
+            # collect garbage
+            gc.collect()
+            # quit
+            exit()
+            
 callbacks = {
-    MODE_GYRO: gyro_mode,
-    MODE_COMPASS: compass_mode,
-    MODE_ACCELERATION: acceleration_mode,
-    MODE_NOOP: noop_mode
+    _MODE_GYRO: gyro_mode,
+    _MODE_COMPASS: compass_mode,
+    _MODE_ACCELERATION: acceleration_mode,
+    _MODE_NOOP: noop_mode
 }
 
 start_timer(callbacks[mode], freq=1)

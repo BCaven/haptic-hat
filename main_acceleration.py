@@ -1,4 +1,5 @@
 from machine import I2C, Pin, PWM
+import gc
 from mpu9250 import MPU9250
 from time import sleep
 from math import pi, cos, sin, sqrt, atan
@@ -84,3 +85,4 @@ while True:
 
     # delay until next observation
     sleep(1.0 / 10)
+    gc.collect()

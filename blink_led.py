@@ -25,7 +25,7 @@ while True:
     if button.value() and not pbval:
         stage += 1
         
-        if stage > 10:
+        if stage > 3:
             stage = 0
         
     
