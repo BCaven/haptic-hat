@@ -15,7 +15,7 @@ The hat I made used a MPU9250, although the same idea could be applied to any ot
 
 ## software
 
-This project is written in microphython for use on a [raspberry pi pico](https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html).
+This project is written in micropython for use on a [raspberry pi pico](https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html).
 
 ## Research
  - [David Eagleman's TED talk](https://www.ted.com/talks/david_eagleman_can_we_create_new_senses_for_humans)
