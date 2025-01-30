@@ -1,6 +1,6 @@
 # Haptic Hat: a haptic feedback balance assistant
 
-## the basic idea
+## the idea
 
 A device that translates incoming data into haptic information - delivering information to the user without sight or sound.
 This repository uses data from a gyroscope and compass, but the same idea could be applied to other information, such as sound or artificial input (like system information about a phone or pc).
